@@ -87,6 +87,7 @@ public class CalendarService : ICalendarService
     {
         var calendar = await _context.Calendars
             .Include(c => c.Managers)
+            .Include(c => c.Members)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (calendar == null)
@@ -193,6 +194,16 @@ public class CalendarService : ICalendarService
         if (!await CanManageCalendar(calendar, userId))
             return new ApiResponse<CalendarDto>(false, "Нет прав на назначение менеджеров");
 
+        var managerUser = await _context.Users.FindAsync(managerId);
+        if (managerUser == null)
+            return new ApiResponse<CalendarDto>(false, "Пользователь не найден");
+
+        if (managerUser.Role == "MANAGER" || managerUser.Role == "ADMIN")
+        {
+            return new ApiResponse<CalendarDto>(false,
+                "Глобальный менеджер или администратор не может быть назначен менеджером календаря, так как уже имеет соответствующие права");
+        }
+
         if (calendar.Managers.Any(m => m.UserId == managerId))
             return new ApiResponse<CalendarDto>(false, "Пользователь уже является менеджером");
 
@@ -211,6 +222,7 @@ public class CalendarService : ICalendarService
     {
         var calendar = await _context.Calendars
             .Include(c => c.Managers)
+            .Include(c => c.Members)
             .FirstOrDefaultAsync(c => c.Id == calendarId);
         if (calendar == null)
             return new ApiResponse<CalendarDto>(false, "Календарь не найден");
@@ -235,7 +247,7 @@ public class CalendarService : ICalendarService
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return false;
-        if (user.Role == "ADMIN") return true;
+        if (user.Role == "ADMIN" || user.Role == "MANAGER") return true;
         if (calendar.CreatedBy == userId) return true;
         return calendar.Managers.Any(m => m.UserId == userId);
     }

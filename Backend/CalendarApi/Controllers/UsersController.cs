@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CalendarApi.Controllers;
 
-[Authorize(Roles = "ADMIN")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
