@@ -64,25 +64,25 @@ export const hasCalendarAccess = (
   accessLevel: 'view' | 'edit' | 'manage'
 ): boolean => {
   if (!user) return false;
-  
+
   if (user.role === 'ADMIN') return true;
-  
-  if (!calendar.members.includes(user.id) && !calendar.isPublic) {
+
+  if (!calendar.members.includes(user.id)) {
     return false;
   }
-  
-  if (accessLevel === 'view') {
+
+  if (accessLevel === 'view' || calendar.isPublic) {
     return true;
   }
-  
+
   if (accessLevel === 'edit') {
-    return user.role === 'MANAGER' && calendar.managers.includes(user.id);
+    return user.role === 'MANAGER' || calendar.managers.includes(user.id);
   }
-  
+
   if (accessLevel === 'manage') {
-    return user.role === 'MANAGER' && calendar.managers.includes(user.id);
+    return user.role === 'MANAGER' || calendar.managers.includes(user.id);
   }
-  
+
   return false;
 };
 
@@ -110,7 +110,7 @@ export const hasEventAccess = (
   }
   
   if (accessLevel === 'edit') {
-    return user.role === 'MANAGER' && 
+    return user.role === 'MANAGER' || 
            (calendar.managers.includes(user.id) || event.createdBy === user.id);
   }
   

@@ -175,7 +175,7 @@ export default function EventDetailPage() {
     );
   }
 
-  const canEdit = user.role === 'ADMIN' || event.createdBy === user.id || calendar.managers.includes(user.id);
+  const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER' || event.createdBy === user.id || calendar.managers.includes(user.id);
   const canComment = calendar.members.includes(user.id) || calendar.isPublic || user.role === 'ADMIN';
   const isParticipant = event.participants.includes(user.id);
 
