@@ -33,5 +33,16 @@ services:
       - ASPNETCORE_URLS=http://+:80   # <-- добавляем эту строку
     restart: unless-stopped
 
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+
 volumes:
   postgres_data:
