@@ -10,7 +10,8 @@ import {
   Trash2,
   Edit,
   Save,
-  X
+  X,
+  Search
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +36,9 @@ export default function CalendarManagePage() {
     color: '',
     isPublic: false,
   });
+
+  const [memberSearch, setMemberSearch] = useState('');
+  const [availableSearch, setAvailableSearch] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -68,7 +72,7 @@ export default function CalendarManagePage() {
     const response = await userService.getAll();
     if (response.success && response.data) {
       setAllUsers(response.data);
-      setUsers(response.data); // обновляем стор
+      setUsers(response.data);
     } else {
       toast.error(response.message || 'Ошибка загрузки пользователей');
     }
@@ -104,11 +108,19 @@ export default function CalendarManagePage() {
   }
 
   const calendarMembers = allUsers.filter(u => calendar.members.includes(u.id));
+  const filteredMembers = calendarMembers.filter(member =>
+    member.name.toLowerCase().includes(memberSearch.toLowerCase())
+  );
+
   const calendarManagers = allUsers.filter(u => calendar.managers.includes(u.id));
+
   const availableUsers = allUsers.filter(u =>
     !calendar.members.includes(u.id) &&
     u.id !== user.id &&
     u.isActive
+  );
+  const filteredAvailable = availableUsers.filter(availableUser =>
+    availableUser.name.toLowerCase().includes(availableSearch.toLowerCase())
   );
 
   const handleSave = async () => {
@@ -117,7 +129,6 @@ export default function CalendarManagePage() {
     if (response.success && response.data) {
       toast.success('Календарь обновлён');
       setCalendar(response.data);
-      // обновить стор
       const updatedCalendars = calendars.map(c => c.id === calendar.id ? response.data! : c);
       setCalendars(updatedCalendars);
       setIsEditing(false);
@@ -273,17 +284,11 @@ export default function CalendarManagePage() {
                   </div>
 
                   <div className="flex space-x-3">
-                    <button
-                      onClick={handleSave}
-                      className="btn-primary flex items-center space-x-2"
-                    >
+                    <button onClick={handleSave} className="btn-primary flex items-center space-x-2">
                       <Save className="h-4 w-4" />
                       <span>Сохранить</span>
                     </button>
-                    <button
-                      onClick={handleCancel}
-                      className="btn-secondary flex items-center space-x-2"
-                    >
+                    <button onClick={handleCancel} className="btn-secondary flex items-center space-x-2">
                       <X className="h-4 w-4" />
                       <span>Отмена</span>
                     </button>
@@ -292,10 +297,7 @@ export default function CalendarManagePage() {
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-start space-x-4">
-                    <div
-                      className="h-12 w-12 rounded-lg"
-                      style={{ backgroundColor: calendar.color }}
-                    />
+                    <div className="h-12 w-12 rounded-lg" style={{ backgroundColor: calendar.color }} />
                     <div>
                       <h3 className="font-semibold text-gray-900 text-lg">{calendar.name}</h3>
                       <p className="text-gray-600 mt-1">{calendar.description}</p>
@@ -312,76 +314,94 @@ export default function CalendarManagePage() {
             </div>
 
             <div className="card mt-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Участники календаря</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Участники календаря</h2>
+              </div>
+
+              {/* Поле поиска по участникам */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Поиск по имени..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
 
               <div className="space-y-4">
-                {calendarMembers.map((member) => {
-                  const isCreator = member.id === calendar.createdBy;
-                  const isManager = calendar.managers.includes(member.id);
+                {filteredMembers.length > 0 ? (
+                  filteredMembers.map((member) => {
+                    const isCreator = member.id === calendar.createdBy;
+                    const isManager = calendar.managers.includes(member.id);
 
-                  return (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="h-10 w-10 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center font-medium">
-                          {getInitials(member.name)}
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-gray-900">{member.name}</span>
-                            {isCreator && (
-                              <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
-                                Создатель
-                              </span>
-                            )}
-                            {isManager && !isCreator && (
-                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                                Менеджер
-                              </span>
-                            )}
-                            <span className={`px-2 py-1 text-xs rounded ${member.role === 'ADMIN' ? 'bg-red-100 text-red-800' : member.role === 'MANAGER' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                              {member.role === 'ADMIN' ? 'Админ' : member.role === 'MANAGER' ? 'Менеджер' : 'Пользователь'}
-                            </span>
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="h-10 w-10 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center font-medium">
+                            {getInitials(member.name)}
                           </div>
-                          <p className="text-sm text-gray-500">{member.email}</p>
+                          <div>
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              <span className="font-medium text-gray-900">{member.name}</span>
+                              {isCreator && (
+                                <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
+                                  Создатель
+                                </span>
+                              )}
+                              {isManager && !isCreator && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                  Менеджер
+                                </span>
+                              )}
+                              <span className={`px-2 py-1 text-xs rounded ${member.role === 'ADMIN' ? 'bg-red-100 text-red-800' : member.role === 'MANAGER' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                                {member.role === 'ADMIN' ? 'Админ' : member.role === 'MANAGER' ? 'Менеджер' : 'Пользователь'}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-500">{member.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          {!isCreator && hasCalendarAccess(user, calendar, 'manage') && (
+                            <>
+                              {isManager ? (
+                                <button
+                                  onClick={() => handleToggleManager(member.id, true)}
+                                  className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                                  title="Убрать права менеджера"
+                                >
+                                  <ShieldOff className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleToggleManager(member.id, false)}
+                                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  title="Назначить менеджером"
+                                >
+                                  <Shield className="h-4 w-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleRemoveMember(member.id)}
+                                className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                title="Удалить из календаря"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center space-x-2">
-                        {!isCreator && hasCalendarAccess(user, calendar, 'manage') && (
-                          <>
-                            {isManager ? (
-                              <button
-                                onClick={() => handleToggleManager(member.id, true)}
-                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
-                                title="Убрать права менеджера"
-                              >
-                                <ShieldOff className="h-4 w-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleToggleManager(member.id, false)}
-                                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                                title="Назначить менеджером"
-                              >
-                                <Shield className="h-4 w-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleRemoveMember(member.id)}
-                              className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                              title="Удалить из календаря"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <p className="text-gray-500 text-center py-4">Участники не найдены</p>
+                )}
               </div>
             </div>
           </div>
@@ -390,13 +410,25 @@ export default function CalendarManagePage() {
             <div className="card">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Добавить участников</h2>
 
-              {availableUsers.length > 0 ? (
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Введите имя для поиска..."
+                  value={availableSearch}
+                  onChange={(e) => setAvailableSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              {availableSearch.trim() === '' ? (
+                <p className="text-gray-500 text-center py-4">Введите имя для поиска пользователей</p>
+              ) : filteredAvailable.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Пользователи не найдены</p>
+              ) : (
                 <div className="space-y-3">
-                  {availableUsers.map((availableUser) => (
-                    <div
-                      key={availableUser.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
+                  {filteredAvailable.map((availableUser) => (
+                    <div key={availableUser.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="h-8 w-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-sm font-medium">
                           {getInitials(availableUser.name)}
@@ -406,7 +438,6 @@ export default function CalendarManagePage() {
                           <p className="text-xs text-gray-500">{availableUser.email}</p>
                         </div>
                       </div>
-
                       <button
                         onClick={() => handleAddMember(availableUser.id)}
                         className="p-2 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-lg"
@@ -417,8 +448,6 @@ export default function CalendarManagePage() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">Нет доступных пользователей для добавления</p>
               )}
             </div>
 
