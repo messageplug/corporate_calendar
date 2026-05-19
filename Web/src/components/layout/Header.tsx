@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Calendar, Bell, Search, User, Menu, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'react-hot-toast';
+import { NotificationDropdown } from '../noty/NotificationDropdown';
 
 export const Header = () => {
   //test
@@ -21,10 +22,6 @@ export const Header = () => {
 
   const toggleMobileMenu = () => {
     setShowMobileMenu(!showMobileMenu);
-  };
-
-  const handleNotifications = () => {
-    toast('Уведомления пока не реализованы', { icon: '🔔' });
   };
 
   return (
@@ -73,13 +70,7 @@ export const Header = () => {
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-4">
-            <button 
-              onClick={handleNotifications}
-              className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Bell className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             <div className="hidden sm:flex items-center space-x-3">
               <div className="text-right">
