@@ -11,17 +11,19 @@ export const Sidebar = () => {
 
   if (!user) return null;
 
-  const userCalendars = calendars.filter(calendar => 
-    calendar.members.includes(user.id) || calendar.isPublic
-  );
+  const userCalendars = user.role === 'ADMIN'
+    ? calendars
+    : calendars.filter(calendar => 
+        calendar.members.includes(user.id) || calendar.isPublic
+      );
 
   const handleLogout = async () => {
     await logout();
   };
 
   return (
-    <aside className="hidden lg:block w-64 bg-white border-r border-gray-200">
-      <nav className="p-6 space-y-6">
+    <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 h-full">
+      <nav className="p-6 space-y-6 h-full overflow-y-auto">
         <div className="space-y-2">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Календари

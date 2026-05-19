@@ -7,6 +7,7 @@ public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
+    public DbSet<Notification> Notifications { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<Calendar> Calendars { get; set; }
     public DbSet<CalendarMember> CalendarMembers { get; set; }
@@ -117,5 +118,14 @@ public class ApplicationDbContext : DbContext
             .WithMany(u => u.RefreshTokens)
             .HasForeignKey(rt => rt.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.User)
+            .WithMany()
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+                modelBuilder.Entity<Notification>()
+                    .HasIndex(n => n.UserId);
     }
 }

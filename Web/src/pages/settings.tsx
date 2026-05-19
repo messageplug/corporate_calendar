@@ -19,7 +19,6 @@ export default function SettingsPage() {
   }
   
   const handleSave = () => {
-    // Здесь будет логика сохранения настроек
     alert('Настройки сохранены (заглушка)');
   };
   
@@ -69,20 +68,6 @@ export default function SettingsPage() {
                     className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
-              </div>
-              
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="notifications"
-                  checked={formData.notifications}
-                  onChange={(e) => setFormData({ ...formData, notifications: e.target.checked })}
-                  className="h-4 w-4 text-primary-600 rounded"
-                />
-                <label htmlFor="notifications" className="ml-2 flex items-center text-sm text-gray-700">
-                  <Bell className="h-4 w-4 mr-1" />
-                  Получать уведомления
-                </label>
               </div>
               
               <div className="pt-4 border-t border-gray-200">

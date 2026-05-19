@@ -20,7 +20,9 @@ public class User
     
     [Required]
     public string Role { get; set; } = "USER"; // ADMIN, MANAGER, USER
-    
+
+    public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+
     public DateTime CreatedAt { get; set; }
     public bool IsActive { get; set; } = true;
     public string? Avatar { get; set; }
