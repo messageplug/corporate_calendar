@@ -25,11 +25,12 @@ import { CalendarThing, User } from '@/types';
 export default function CalendarManagePage() {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth(); 
   const { calendars, setCalendars, setUsers } = useAppStore();
   const [calendar, setCalendar] = useState<CalendarThing | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [editData, setEditData] = useState({
     name: '',
     description: '',
@@ -41,18 +42,22 @@ export default function CalendarManagePage() {
   const [availableSearch, setAvailableSearch] = useState('');
 
   useEffect(() => {
+    if (authLoading) return; 
+
     if (!user) {
       router.push('/auth/login');
       return;
     }
+
     if (id) {
       loadCalendar();
       loadUsers();
     }
-  }, [id, user]);
+  }, [id, user, authLoading, router]);
 
   const loadCalendar = async () => {
     if (!id) return;
+    setIsLoading(true);
     const response = await calendarService.getById(id as string);
     if (response.success && response.data) {
       setCalendar(response.data);
@@ -66,6 +71,7 @@ export default function CalendarManagePage() {
       toast.error(response.message || 'Ошибка загрузки календаря');
       router.push('/dashboard');
     }
+    setIsLoading(false);
   };
 
   const loadUsers = async () => {
@@ -78,11 +84,31 @@ export default function CalendarManagePage() {
     }
   };
 
-  if (!calendar || !user) {
+  if (authLoading || isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
-          <p className="text-gray-500">Загрузка...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!calendar) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="card text-center max-w-md">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Календарь не найден</h2>
+            <p className="text-gray-600 mb-4">Запрашиваемый календарь не существует или был удалён</p>
+            <button onClick={() => router.push('/dashboard')} className="btn-primary">
+              Вернуться на главную
+            </button>
+          </div>
         </div>
       </Layout>
     );
@@ -156,6 +182,8 @@ export default function CalendarManagePage() {
       setCalendar(response.data);
       const updated = calendars.map(c => c.id === calendar.id ? response.data! : c);
       setCalendars(updated);
+      // Очищаем поиск после добавления
+      setAvailableSearch('');
     } else {
       toast.error(response.message || 'Ошибка добавления');
     }
@@ -318,7 +346,6 @@ export default function CalendarManagePage() {
                 <h2 className="text-xl font-semibold text-gray-900">Участники календаря</h2>
               </div>
 
-              {/* Поле поиска по участникам */}
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input

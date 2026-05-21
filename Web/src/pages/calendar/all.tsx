@@ -11,8 +11,7 @@ import { CalendarThing, User } from '@/types'; // 👈 Импорт типов
 export default function AllCalendarsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  
-  // 👇 Явная типизация
+
   const [calendars, setCalendars] = useState<CalendarThing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,7 +36,6 @@ export default function AllCalendarsPage() {
     setIsLoading(false);
   };
 
-  // 👇 Типизация колбэка фильтрации
   const userCalendars = calendars.filter((cal: CalendarThing) =>
     cal.members.includes(user?.id || '') || cal.isPublic
   );

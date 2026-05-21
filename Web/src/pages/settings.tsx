@@ -1,27 +1,48 @@
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Save, User, Mail, Bell, Shield } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
+    name: '',
+    email: '',
     notifications: true,
   });
-  
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        notifications: true,
+      });
+    }
+  }, [user]);
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
+
   if (!user) {
-    router.push('/auth/login');
     return null;
   }
-  
-  const handleSave = () => {
-    alert('Настройки сохранены (заглушка)');
-  };
-  
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto">
@@ -34,12 +55,12 @@ export default function SettingsPage() {
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Настройки</h1>
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div className="card space-y-6">
               <h2 className="text-xl font-semibold text-gray-900">Профиль</h2>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Имя
@@ -54,7 +75,7 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email
@@ -69,23 +90,13 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={handleSave}
-                  className="btn-primary flex items-center space-x-2"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>Сохранить изменения</span>
-                </button>
-              </div>
             </div>
           </div>
-          
+
           <div className="space-y-6">
             <div className="card">
               <h3 className="font-medium text-gray-900 mb-4">Информация о пользователе</h3>
-              
+
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center">
@@ -96,7 +107,7 @@ export default function SettingsPage() {
                     <p className="text-sm text-gray-500">{user.email}</p>
                   </div>
                 </div>
-                
+
                 <div className="pt-3 border-t border-gray-200">
                   <div className="flex items-center space-x-2 mb-2">
                     <Shield className="h-4 w-4 text-gray-400" />

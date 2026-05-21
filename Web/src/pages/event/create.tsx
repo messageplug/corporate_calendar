@@ -9,7 +9,7 @@ import { CalendarThing, User } from '@/types';
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [calendars, setCalendars] = useState<CalendarThing[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [formData, setFormData] = useState({
@@ -23,15 +23,25 @@ export default function CreateEventPage() {
     participants: [] as string[],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       router.push('/auth/login');
       return;
     }
-    loadCalendars();
-    loadUsers();
-  }, [user]);
+
+    const init = async () => {
+      setIsLoading(true);
+      await loadCalendars();
+      await loadUsers();
+      setIsLoading(false);
+    };
+
+    init();
+  }, [user, authLoading, router]);
 
   const loadCalendars = async () => {
     const res = await calendarService.getAll();
@@ -102,6 +112,20 @@ export default function CreateEventPage() {
   const availableUsers = selectedCalendar 
     ? users.filter(u => selectedCalendar.members.includes(u.id) && u.id !== user?.id)
     : [];
+
+  if (authLoading || isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <Layout>

@@ -298,7 +298,7 @@ export const userService = {
 
   updateRole: async (id: string, role: UserRole): Promise<ApiResponse<User>> => {
     try {
-      const response = await api.put(`/Users/${id}/role`, { role });
+      const response = await api.put(`/Users/${id}/${role}`);
       return response.data;
     } catch (error: any) {
       return error as ApiResponse<User>;
