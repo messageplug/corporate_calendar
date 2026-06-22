@@ -53,9 +53,26 @@ public class CommentService : ICommentService
         _context.Comments.Add(comment);
         await _context.SaveChangesAsync();
 
-        await _notificationService.NotifyNewCommentAsync(dto.EventId, comment.Id, userId);
-
         var user = await _context.Users.FindAsync(userId);
+
+        var eventEntity = await _context.Events
+        .Include(e => e.Participants)
+        .FirstOrDefaultAsync(e => e.Id == dto.EventId);
+            if (eventEntity != null)
+            {
+                var participantIds = eventEntity.Participants.Select(p => p.UserId).Where(uid => uid != userId).Distinct();
+                foreach (var pid in participantIds)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        pid,
+                        "comment",
+                        "Новый комментарий",
+                        $"Пользователь {user?.Name} оставил комментарий к событию \"{eventEntity.Title}\"",
+                        comment.Id
+                    );
+                }
+            }
+
         return new ApiResponse<CommentDto>(true, "Комментарий добавлен", new CommentDto
         {
             Id = comment.Id,
@@ -86,6 +103,7 @@ public class CommentService : ICommentService
         await _context.SaveChangesAsync();
 
         var commentUser = await _context.Users.FindAsync(comment.UserId);
+
         return new ApiResponse<CommentDto>(true, "Комментарий обновлен", new CommentDto
         {
             Id = comment.Id,

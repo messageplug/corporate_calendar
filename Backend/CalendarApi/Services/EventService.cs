@@ -9,11 +9,12 @@ public class EventService : IEventService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<EventService> _logger;
-
-    public EventService(ApplicationDbContext context, ILogger<EventService> logger)
+    private readonly INotificationService _notificationService;
+    public EventService(ApplicationDbContext context, ILogger<EventService> logger, INotificationService notificationService)
     {
         _context = context;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<ApiResponse<List<EventDto>>> GetAllAsync(Guid userId, Guid? calendarId = null)
@@ -113,6 +114,18 @@ public class EventService : IEventService
 
         await _context.SaveChangesAsync();
 
+        var eventParticipants = ev.Participants.Select(p => p.UserId).Where(uid => uid != userId).Distinct();
+        foreach (var pid in eventParticipants)
+        {
+            await _notificationService.CreateNotificationAsync(
+                pid,
+                "event_changed",
+                "Событие изменено",
+                $"Событие \"{ev.Title}\" было изменено",
+                ev.Id
+            );
+        }
+
         return new ApiResponse<EventDto>(true, "Событие обновлено", MapToDto(ev));
     }
 
@@ -141,16 +154,54 @@ public class EventService : IEventService
         return new ApiResponse<object>(true, "Событие удалено");
     }
 
-    public Task<ApiResponse<EventDto>> AddParticipantAsync(Guid eventId, Guid participantId, Guid userId)
+    public async Task<ApiResponse<EventDto>> AddParticipantAsync(Guid eventId, Guid participantId, Guid userId)
     {
-        // Заглушка
-        throw new NotImplementedException();
+        var ev = await _context.Events
+            .Include(e => e.Participants)
+            .Include(e => e.Calendar)
+            .FirstOrDefaultAsync(e => e.Id == eventId);
+        if (ev == null)
+            return new ApiResponse<EventDto>(false, "Событие не найдено");
+
+        if (!await CanEditEvent(ev, userId) && ev.CreatedBy != userId)
+            return new ApiResponse<EventDto>(false, "Нет прав для добавления участников");
+
+        if (ev.Participants.Any(p => p.UserId == participantId))
+            return new ApiResponse<EventDto>(false, "Пользователь уже участвует в событии");
+
+        ev.Participants.Add(new EventParticipant { UserId = participantId });
+        await _context.SaveChangesAsync();
+
+        // Уведомление добавленному участнику
+        await _notificationService.CreateNotificationAsync(
+            participantId,
+            "participant_added",
+            "Вы добавлены в событие",
+            $"Вас добавили в событие \"{ev.Title}\"",
+            ev.Id
+        );
+
+        return new ApiResponse<EventDto>(true, "Участник добавлен", MapToDto(ev));
     }
 
-    public Task<ApiResponse<EventDto>> RemoveParticipantAsync(Guid eventId, Guid participantId, Guid userId)
+    public async Task<ApiResponse<EventDto>> RemoveParticipantAsync(Guid eventId, Guid participantId, Guid userId)
     {
-        // Заглушка
-        throw new NotImplementedException();
+        var ev = await _context.Events
+            .Include(e => e.Participants)
+            .FirstOrDefaultAsync(e => e.Id == eventId);
+        if (ev == null)
+            return new ApiResponse<EventDto>(false, "Событие не найдено");
+
+        if (!await CanEditEvent(ev, userId) && ev.CreatedBy != userId && userId != participantId)
+            return new ApiResponse<EventDto>(false, "Нет прав для удаления участника");
+
+        var participant = ev.Participants.FirstOrDefault(p => p.UserId == participantId);
+        if (participant == null)
+            return new ApiResponse<EventDto>(false, "Пользователь не является участником");
+
+        ev.Participants.Remove(participant);
+        await _context.SaveChangesAsync();
+        return new ApiResponse<EventDto>(true, "Участник удалён", MapToDto(ev));
     }
 
     private async Task<bool> CanEditEvent(Event ev, Guid userId)

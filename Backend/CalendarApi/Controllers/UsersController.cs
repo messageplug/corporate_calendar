@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CalendarApi.Controllers;
 
-[Authorize(Roles = "ADMIN")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
@@ -36,8 +36,8 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPut("{id}/role")]
-    public async Task<ActionResult<ApiResponse<UserDto>>> UpdateRole(Guid id, [FromBody] string role)
+    [HttpPut("{id}/{role}")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> UpdateRole(Guid id, string role)
     {
         var userId = User.GetUserId();
         var result = await _userService.UpdateRoleAsync(id, role, userId);

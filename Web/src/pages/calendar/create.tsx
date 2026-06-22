@@ -8,7 +8,7 @@ import { toast } from 'react-hot-toast';
 
 export default function CreateCalendarPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -18,16 +18,18 @@ export default function CreateCalendarPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       router.push('/auth/login');
       return;
     }
-    // Проверка прав: создавать календарь могут MANAGER и ADMIN
+
     if (user.role === 'USER') {
       toast.error('У вас нет прав для создания календаря');
       router.push('/dashboard');
     }
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +54,19 @@ export default function CreateCalendarPage() {
     }
   };
 
-  if (!user) return null;
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user || user.role === 'USER') {
+    return null;
+  }
 
   return (
     <Layout>

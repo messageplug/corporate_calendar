@@ -9,7 +9,7 @@ import { User as UserType } from '@/types';
 
 export default function UsersPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth(); // добавляем authLoading
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<UserType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,17 +18,21 @@ export default function UsersPage() {
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'USER' });
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
       router.push('/auth/login');
       return;
     }
+
     if (user.role !== 'ADMIN') {
       toast.error('Доступ запрещён');
       router.push('/dashboard');
       return;
     }
+
     loadUsers();
-  }, [user, router]);
+  }, [user, authLoading, router]);
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -42,61 +46,70 @@ export default function UsersPage() {
   };
 
   const handleRoleChange = async (userId: string, newRole: string) => {
-    const res = await userService.updateRole(userId, newRole as any);
-    if (res.success) {
-      toast.success('Роль обновлена');
-      loadUsers();
-    } else {
-      toast.error(res.message || 'Ошибка обновления');
+    try {
+      const res = await userService.updateRole(userId, newRole as any);
+      if (res.success) {
+        toast.success('Роль обновлена');
+        loadUsers();
+      } else {
+        toast.error(res.message || 'Ошибка обновления');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Ошибка при обновлении роли');
     }
   };
 
-    const handleDelete = async (userId: string) => {
+  const handleDelete = async (userId: string) => {
     if (!window.confirm('Вы уверены, что хотите удалить пользователя? Это действие необратимо.')) return;
     
-    const res = await userService.delete(userId);
-    if (res.success) {
+    try {
+      const res = await userService.delete(userId);
+      if (res.success) {
         toast.success('Пользователь удалён');
-        loadUsers(); // перезагрузить список
-    } else {
+        loadUsers();
+      } else {
         toast.error(res.message || 'Ошибка удаления');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Ошибка при удалении');
     }
-    };
+  };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Используем authService.register для создания пользователя
-    const res = await authService.register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-      role: formData.role as any,
-    });
-    if (res.success) {
-      toast.success('Пользователь добавлен');
-      setShowAddModal(false);
-      setFormData({ name: '', email: '', password: '', role: 'USER' });
-      loadUsers();
-    } else {
-      toast.error(res.message || 'Ошибка добавления');
+    try {
+      const res = await authService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role as any,
+      });
+      if (res.success) {
+        toast.success('Пользователь добавлен');
+        setShowAddModal(false);
+        setFormData({ name: '', email: '', password: '', role: 'USER' });
+        loadUsers();
+      } else {
+        toast.error(res.message || 'Ошибка добавления');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Ошибка при добавлении пользователя');
     }
   };
 
-  const handleEditUser = (user: UserType) => {
-    setEditingUser(user);
-    setFormData({ name: user.name, email: user.email, password: '', role: user.role });
-  };
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+        </div>
+      </Layout>
+    );
+  }
 
-  const handleUpdateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingUser) return;
-    // Здесь должен быть API-запрос на обновление пользователя (бэкенд не предоставляет)
-    toast.success('Данные пользователя обновлены (заглушка)');
-    // В реальности: await userService.update(editingUser.id, { name: formData.name, email: formData.email, role: formData.role });
-    setEditingUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'USER' });
-    loadUsers();
-  };
+  if (!user || user.role !== 'ADMIN') {
+    return null;
+  }
 
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -120,10 +133,6 @@ export default function UsersPage() {
       </span>
     );
   };
-
-  if (user?.role !== 'ADMIN') {
-    return null;
-  }
 
   return (
     <Layout>
@@ -203,7 +212,7 @@ export default function UsersPage() {
                             </p>
                           </div>
                         </div>
-                      </td>
+                       </td>
                       <td className="py-3 px-4">
                         <select
                           value={userItem.role}
@@ -225,13 +234,6 @@ export default function UsersPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => handleEditUser(userItem)}
-                            className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded"
-                            title="Редактировать"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
                           <button
                             onClick={() => handleDelete(userItem.id)}
                             className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded"
@@ -256,8 +258,6 @@ export default function UsersPage() {
           )}
         </div>
       </div>
-
-      {/* Модалка добавления пользователя */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
@@ -325,8 +325,6 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-
-      {/* Модалка редактирования пользователя */}
       {editingUser && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
@@ -338,57 +336,6 @@ export default function UsersPage() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <form onSubmit={handleUpdateUser} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Имя</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="input-field mt-1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="input-field mt-1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Новый пароль (оставьте пустым, чтобы не менять)</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="input-field mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Роль</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="input-field mt-1"
-                  >
-                    <option value="USER">Пользователь</option>
-                    <option value="MANAGER">Менеджер</option>
-                    <option value="ADMIN">Администратор</option>
-                  </select>
-                </div>
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button type="button" onClick={() => setEditingUser(null)} className="btn-secondary">
-                    Отмена
-                  </button>
-                  <button type="submit" className="btn-primary">
-                    Сохранить
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         </div>
