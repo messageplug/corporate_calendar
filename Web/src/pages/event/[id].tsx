@@ -11,7 +11,9 @@ import {
   CheckCircle,
   XCircle,
   UserPlus,
-  UserMinus
+  UserMinus,
+  Search,
+  X
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { EventComments } from '@/components/calendar/EventComments';
@@ -21,12 +23,11 @@ import { eventService, calendarService, userService } from '@/services/api';
 import { formatDateTime, formatTime, getInitials } from '@/utils';
 import { toast } from 'react-hot-toast';
 import { CalendarEvent, CalendarThing, User } from '@/types';
-const { events, setEvents } = useAppStore();
 
 export default function EventDetailPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { setEvents, setCalendars, setUsers } = useAppStore();
 
   const [event, setEvent] = useState<CalendarEvent | null>(null);
@@ -41,20 +42,24 @@ export default function EventDetailPage() {
     end: '',
     color: '',
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
+  const [participantSearch, setParticipantSearch] = useState('');
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       router.push('/auth/login');
-      return;
     }
-    if (id) {
+    if (id && user) {
       loadEvent();
       loadUsers();
     }
-  }, [id, user]);
+  }, [id, user, authLoading]);
 
   const loadEvent = async () => {
     if (!id) return;
+    setIsLoading(true);
     const res = await eventService.getById(id as string);
     if (res.success && res.data) {
       setEvent(res.data);
@@ -66,15 +71,24 @@ export default function EventDetailPage() {
         end: new Date(res.data.end).toISOString().slice(0, 16),
         color: res.data.color || '#3b82f6',
       });
-      // загрузить календарь события
       const calRes = await calendarService.getById(res.data.calendarId);
       if (calRes.success && calRes.data) {
         setCalendar(calRes.data);
+        const currentCalendars = useAppStore.getState().calendars;
+        if (!currentCalendars.find(c => c.id === calRes.data!.id)) {
+          setCalendars([...currentCalendars, calRes.data!]);
+        }
+      } else {
+        toast.error('Не удалось загрузить календарь');
       }
     } else {
-      toast.error(res.message || 'Ошибка загрузки события');
-      router.push('/dashboard');
+      if (res.message?.toLowerCase().includes('не найден')) {
+        setNotFound(true);
+      } else {
+        toast.error(res.message || 'Ошибка загрузки события');
+      }
     }
+    setIsLoading(false);
   };
 
   const loadUsers = async () => {
@@ -96,9 +110,8 @@ export default function EventDetailPage() {
       toast.success('Событие обновлено');
       setEvent(res.data);
       setIsEditing(false);
-      
-      // Обновляем стор, используя текущий events
-      setEvents(events.map(e => e.id === event.id ? res.data! : e));
+      const currentEvents = useAppStore.getState().events;
+      setEvents(currentEvents.map(e => e.id === event.id ? res.data! : e));
     } else {
       toast.error(res.message || 'Ошибка обновления');
     }
@@ -139,14 +152,47 @@ export default function EventDetailPage() {
       res = await eventService.addParticipant(event.id, user.id);
     }
     if (res.success && res.data) {
-      toast.success('Событие обновлено');
+      toast.success(isParticipant ? 'Вы отказались от участия' : 'Вы участвуете');
       setEvent(res.data);
-      setIsEditing(false);
-      
-      // Обновляем стор, используя текущий events
-      setEvents(events.map(e => e.id === event.id ? res.data! : e));
+      const currentEvents = useAppStore.getState().events;
+      setEvents(currentEvents.map(e => e.id === event.id ? res.data! : e));
     } else {
       toast.error(res.message || 'Ошибка');
+    }
+  };
+
+  const handleAddParticipant = async (userId: string) => {
+    if (!event) return;
+    const res = await eventService.addParticipant(event.id, userId);
+    if (res.success && res.data) {
+      toast.success('Участник добавлен');
+      setEvent(res.data);
+      const currentEvents = useAppStore.getState().events;
+      setEvents(currentEvents.map(e => e.id === event.id ? res.data! : e));
+      setParticipantSearch('');
+      const remaining = availableParticipants.filter(u => u.id !== userId);
+      if (remaining.length === 0) {
+        setShowAddParticipantModal(false);
+      }
+    } else {
+      toast.error(res.message || 'Ошибка добавления участника');
+    }
+  };
+
+  const handleRemoveParticipant = async (userId: string) => {
+    if (!event) return;
+    if (userId === event.createdBy) {
+      toast.error('Нельзя удалить создателя события');
+      return;
+    }
+    const res = await eventService.removeParticipant(event.id, userId);
+    if (res.success && res.data) {
+      toast.success('Участник удалён');
+      setEvent(res.data);
+      const currentEvents = useAppStore.getState().events;
+      setEvents(currentEvents.map(e => e.id === event.id ? res.data! : e));
+    } else {
+      toast.error(res.message || 'Ошибка удаления участника');
     }
   };
 
@@ -154,33 +200,66 @@ export default function EventDetailPage() {
     if (!event) return;
     const res = await eventService.update(event.id, { status });
     if (res.success && res.data) {
-      toast.success('Событие обновлено');
+      toast.success('Статус обновлён');
       setEvent(res.data);
-      setIsEditing(false);
-      
-      // Обновляем стор, используя текущий events
-      setEvents(events.map(e => e.id === event.id ? res.data! : e));
+      const currentEvents = useAppStore.getState().events;
+      setEvents(currentEvents.map(e => e.id === event.id ? res.data! : e));
     } else {
       toast.error(res.message || 'Ошибка');
     }
   };
 
-  if (!event || !calendar || !user) {
+  if (authLoading || isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-screen">
-          <p className="text-gray-500">Загрузка...</p>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto" />
+            <p className="mt-4 text-gray-600">Загрузка...</p>
+          </div>
         </div>
       </Layout>
     );
   }
 
-  const canEdit = user.role === 'ADMIN' || user.role === 'MANAGER' || event.createdBy === user.id || calendar.managers.includes(user.id);
+  if (notFound) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="card text-center max-w-md">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Событие не найдено</h2>
+            <p className="text-gray-600 mb-4">Запрошенное событие не существует или было удалено</p>
+            <button onClick={() => router.push('/dashboard')} className="btn-primary">
+              Вернуться на главную
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!event || !calendar || !user) {
+    return null;
+  }
+
+  const canEdit = user.role === 'ADMIN' || event.createdBy === user.id || calendar.managers.includes(user.id);
   const canComment = calendar.members.includes(user.id) || calendar.isPublic || user.role === 'ADMIN';
+  const canManageParticipants = user.role === 'ADMIN' || calendar.managers.includes(user.id) || event.createdBy === user.id;
   const isParticipant = event.participants.includes(user.id);
 
   const eventParticipants = allUsers.filter(u => event.participants.includes(u.id));
   const eventCreator = allUsers.find(u => u.id === event.createdBy);
+  const availableParticipants = allUsers.filter(u => 
+    !event.participants.includes(u.id) && 
+    u.id !== user.id && 
+    u.isActive &&
+    (calendar.members.includes(u.id) || user.role === 'ADMIN' || calendar.isPublic)
+  );
+
+  const filteredAvailable = availableParticipants.filter(u =>
+    u.name.toLowerCase().includes(participantSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(participantSearch.toLowerCase())
+  );
 
   const statusColors = {
     SCHEDULED: 'bg-blue-100 text-blue-800',
@@ -230,26 +309,28 @@ export default function EventDetailPage() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button
-              onClick={handleToggleParticipant}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
-                isParticipant
-                  ? 'bg-primary-100 text-primary-600 hover:bg-primary-200'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {isParticipant ? (
-                <>
-                  <UserMinus className="h-4 w-4" />
-                  <span>Не участвовать</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-4 w-4" />
-                  <span>Участвовать</span>
-                </>
-              )}
-            </button>
+            {user.role !== 'USER' && (
+              <button
+                onClick={handleToggleParticipant}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
+                  isParticipant
+                    ? 'bg-primary-100 text-primary-600 hover:bg-primary-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {isParticipant ? (
+                  <>
+                    <UserMinus className="h-4 w-4" />
+                    <span>Не участвовать</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    <span>Участвовать</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {canEdit && (
               <>
@@ -312,7 +393,7 @@ export default function EventDetailPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Начало
-                      </label>
+                    </label>
                       <input
                         type="datetime-local"
                         value={editData.start}
@@ -472,20 +553,57 @@ export default function EventDetailPage() {
 
           <div>
             <div className="card">
-              <h3 className="font-medium text-gray-900 mb-4">Участники ({eventParticipants.length})</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-gray-900">Участники ({eventParticipants.length})</h3>
+                {canManageParticipants && (
+                  <button
+                    onClick={() => setShowAddParticipantModal(true)}
+                    className="text-primary-600 hover:text-primary-700 text-sm flex items-center space-x-1"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    <span>Добавить</span>
+                  </button>
+                )}
+              </div>
 
               <div className="space-y-3">
-                {eventParticipants.map((participant) => (
-                  <div key={participant.id} className="flex items-center space-x-3">
-                    <div className="h-8 w-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-sm font-medium">
-                      {getInitials(participant.name)}
+                {eventParticipants.map((participant) => {
+                  const isCreator = participant.id === event.createdBy;
+                  const canRemove = canManageParticipants && !isCreator && participant.id !== user.id;
+
+                  return (
+                    <div key={participant.id} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-8 w-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-sm font-medium">
+                          {getInitials(participant.name)}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <p className="font-medium text-gray-900">{participant.name}</p>
+                            {isCreator && (
+                              <span className="text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">
+                                Создатель
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500">{participant.email}</p>
+                        </div>
+                      </div>
+                      {canRemove && (
+                        <button
+                          onClick={() => handleRemoveParticipant(participant.id)}
+                          className="text-gray-400 hover:text-red-600"
+                          title="Удалить участника"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{participant.name}</p>
-                      <p className="text-xs text-gray-500">{participant.email}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {eventParticipants.length === 0 && (
+                  <p className="text-gray-500 text-center py-4 text-sm">Нет участников</p>
+                )}
               </div>
             </div>
 
@@ -522,6 +640,61 @@ export default function EventDetailPage() {
           </div>
         </div>
       </div>
+
+      {showAddParticipantModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={() => setShowAddParticipantModal(false)} />
+            <div className="relative bg-white rounded-lg max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium">Добавить участника</h3>
+                <button onClick={() => setShowAddParticipantModal(false)} className="text-gray-400 hover:text-gray-500">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Поиск по имени или email..."
+                  value={participantSearch}
+                  onChange={(e) => setParticipantSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {filteredAvailable.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4 text-sm">
+                    {participantSearch ? 'Пользователи не найдены' : 'Нет доступных пользователей для добавления'}
+                  </p>
+                ) : (
+                  filteredAvailable.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-8 w-8 bg-primary-100 text-primary-600 rounded-full flex items-center justify-center text-sm font-medium">
+                          {getInitials(u.name)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{u.name}</p>
+                          <p className="text-xs text-gray-500">{u.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddParticipant(u.id)}
+                        className="text-primary-600 hover:text-primary-700"
+                      >
+                        <UserPlus className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
